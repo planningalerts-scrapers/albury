@@ -1,42 +1,32 @@
 require 'scraperwiki'
 require 'rss/2.0'
 require 'date'
-require 'mechanize'
-require 'iconv'
+require 'open-uri'
 
-url = "http://eplanning.parracity.nsw.gov.au/Pages/XC.Track/SearchApplication.aspx?o=rss&d=last14days"
+base_url = "https://eservice.alburycity.nsw.gov.au/portal/Pages/XC.Track/SearchApplication.aspx?"
+url = "#{base_url}o=rss&d=last14days"
 
-agent = Mechanize.new
-
-page = agent.get(url)
-form = page.forms.first
-form.checkbox_with(:name => /Agree/).check
-page = form.submit(form.button_with(:name => /Agree/))
-
-t = page.content.to_s
-# I've no idea why the RSS feed says it's encoded as utf-16 when as far as I can tell it isn't
-# Hack it by switching it back to utf-8
-t.gsub!("utf-16", "utf-8")
-
-feed = RSS::Parser.parse(t, false)
+feed = RSS::Parser.parse(open(url).read, false)
 
 feed.channel.items.each do |item|
   # Seeing a record without an address (which is obviously useless). So, skipping
   t = item.description.split(/[\.-]/)
   if t.count >= 2
+    council_reference = item.title.split(' ')[0]
     record = {
-      'council_reference' => item.title.split(' ')[0],
-      'description'       => t[1].strip,
+      'council_reference' => council_reference,
+      'description'       => t[1..-1].join('-').strip,
       # Have to make this a string to get the date library to parse it
       'date_received'     => Date.parse(item.pubDate.to_s),
       'address'           => t[0].strip,
-      'info_url'          => "http://eplanning.parracity.nsw.gov.au/Pages/XC.Track/SearchApplication.aspx#{item.link}",
+      'info_url'          => "#{base_url}id=#{council_reference}",
       # Comment URL is actually an email address but I think it's best
       # they go to the detail page
-      'comment_url'       => "http://eplanning.parracity.nsw.gov.au/Pages/XC.Track/SearchApplication.aspx#{item.link}",
-      'date_scraped'      => Date.today.to_s
+      'comment_url'       => "#{base_url}id=#{council_reference}",
+      'date_scraped'      => Date.today
     }
-    if ScraperWiki.select("* from data where `council_reference`='#{record['council_reference']}'").empty? 
+
+    if (ScraperWiki.select("* from data where `council_reference`='#{record['council_reference']}'").empty? rescue true)
       ScraperWiki.save_sqlite(['council_reference'], record)
     else
        puts "Skipping already saved record " + record['council_reference']
