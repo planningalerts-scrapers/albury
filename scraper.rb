@@ -14,10 +14,11 @@ MasterviewScraper::Pages::TermsAndConditions.click_agree(page)
 page = agent.post(
   "https://eservice.alburycity.nsw.gov.au/ApplicationTracker/Application/GetApplications",
   "start" => 0,
-  "length" => 10,
+  # TODO: Do some kind of paging instead
+  "length" => 1000,
   "json" => {
-    "DateFrom" => "9/06/2019",
-    "DateTo" => "15/06/2019",
+    "DateFrom" => (Date.today - 10).strftime("%d/%m/%Y"),
+    "DateTo" => Date.today.strftime("%d/%m/%Y"),
     "DateType" => "1",
     "RemoveUndeterminedApplications" => false,
     "ShowOutstandingApplications" => false,
